@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Troba el Tió">
+<meta name="theme-color" content="#3b2314">
+<title>Troba el Tió</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+  :root{
+    --bg:#2a1a10; --panel:#fff8ee; --ink:#3b2314; --accent:#c8321f; --green:#2f7d3a; --gold:#f2b53a;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--ink);overscroll-behavior:none}
+  #map{position:fixed;inset:0}
+  .top{position:fixed;top:0;left:0;right:0;z-index:1000;padding:calc(env(safe-area-inset-top) + 8px) 14px 8px;
+       display:flex;align-items:center;justify-content:space-between;
+       background:linear-gradient(#2a1a10e6,#2a1a1000);color:#fff}
+  .top h1{margin:0;font-size:22px;text-shadow:0 2px 4px #0008}
+  .icon-btn{background:#fff8eeee;border:0;border-radius:50%;width:42px;height:42px;font-size:20px;box-shadow:0 2px 8px #0006}
+  .bottom{position:fixed;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 10px);z-index:1000;
+          background:var(--panel);border-radius:22px;padding:14px 16px;box-shadow:0 6px 24px #0008;
+          display:flex;align-items:center;gap:14px}
+  .compass{flex:0 0 96px;width:96px;height:96px;position:relative}
+  .compass svg{width:100%;height:100%}
+  #arrow{transition:transform .25s linear;transform-origin:50% 50%}
+  .info{flex:1;min-width:0}
+  .info .dist{font-size:28px;font-weight:800;line-height:1}
+  .info .msg{margin-top:6px;font-size:15px;line-height:1.25}
+  .info .sub{margin-top:4px;font-size:12px;opacity:.65}
+  .hot{color:var(--accent)} .near{color:var(--green)}
+  button.primary{background:var(--accent);color:#fff;border:0;border-radius:14px;padding:12px 16px;font-size:16px;font-weight:700;width:100%}
+  button.secondary{background:#eadfce;color:var(--ink);border:0;border-radius:14px;padding:12px 16px;font-size:16px;font-weight:600;width:100%}
+  button.green{background:var(--green);color:#fff;border:0;border-radius:14px;padding:12px 16px;font-size:16px;font-weight:700;width:100%}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:2000;background:var(--panel);border-radius:24px 24px 0 0;
+         padding:18px 18px calc(env(safe-area-inset-bottom) + 18px);box-shadow:0 -8px 30px #000a;display:none;max-height:85vh;overflow:auto}
+  .sheet h2{margin:0 0 6px;font-size:20px}
+  .sheet p{margin:6px 0 12px;font-size:14px;line-height:1.35}
+  .sheet .row{display:flex;gap:8px;margin:10px 0}
+  .sheet input[type=password],.sheet input[type=text]{width:100%;padding:12px;border:2px solid #d9c9b0;border-radius:12px;font-size:18px;background:#fff}
+  .chip{flex:1;text-align:center;padding:10px 0;border-radius:12px;background:#eadfce;font-weight:700;border:2px solid transparent}
+  .chip.on{border-color:var(--accent);background:#fde3dd}
+  .status{font-size:13px;margin:8px 0;padding:8px 10px;border-radius:10px;background:#fff;border:1px dashed #cdb89a}
+  .toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 64px);transform:translateX(-50%);z-index:3000;background:#000c;color:#fff;
+         padding:10px 16px;border-radius:20px;font-size:14px;display:none;max-width:90%;text-align:center}
+  .me-dot{width:18px;height:18px;border-radius:50%;background:#2d8cff;border:3px solid #fff;box-shadow:0 0 0 6px #2d8cff44}
+  .pin{font-size:30px;filter:drop-shadow(0 2px 3px #000a)}
+  #empty{position:fixed;inset:0;z-index:1500;background:var(--bg);color:#fff;display:none;align-items:center;justify-content:center;text-align:center;padding:30px}
+  #empty .big{font-size:80px}
+  #empty h2{margin:10px 0}
+  #empty p{opacity:.85;line-height:1.4}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="top">
+  <h1>🪵 Troba el Tió</h1>
+  <button class="icon-btn" id="btnParent" aria-label="Modo padres">🔒</button>
+</div>
+
+<div class="bottom" id="panel">
+  <div class="compass">
+    <svg viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="47" fill="#3b2314"/>
+      <circle cx="50" cy="50" r="42" fill="#fff8ee"/>
+      <text x="50" y="14" text-anchor="middle" font-size="9" font-weight="700" fill="#c8321f" id="lblN">N</text>
+      <g id="arrow">
+        <path d="M50 12 L66 56 L50 48 L34 56 Z" fill="#c8321f" stroke="#7a1a0e" stroke-width="2" stroke-linejoin="round"/>
+        <circle cx="50" cy="52" r="5" fill="#3b2314"/>
+      </g>
+    </svg>
+  </div>
+  <div class="info">
+    <div class="dist" id="dist">…</div>
+    <div class="msg" id="msg">Buscando tu ubicación…</div>
+    <div class="sub" id="sub"></div>
+  </div>
+</div>
+
+<div id="empty">
+  <div>
+    <div class="big">🪵</div>
+    <h2>El Tió todavía duerme…</h2>
+    <p>Aún no se ha escondido el Tió en el bosque.<br>Pide a mamá o papá que lo escondan y vuelve a abrir esta página.</p>
+    <p style="margin-top:24px"><button class="secondary" id="btnParent2" style="max-width:260px">🔒 Soy mamá/papá</button></p>
+  </div>
+</div>
+
+<!-- Hoja de PIN -->
+<div class="sheet" id="sheetPin">
+  <h2>🔒 Zona de padres</h2>
+  <p id="pinText">Introduce tu PIN.</p>
+  <input type="password" id="pinInput" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="PIN (4 dígitos o más)">
+  <div class="row"><button class="secondary" id="pinCancel">Cancelar</button><button class="primary" id="pinOk">Entrar</button></div>
+</div>
+
+<!-- Hoja padres -->
+<div class="sheet" id="sheetParent">
+  <h2>🌲 Esconder el Tió</h2>
+  <p>Ve al sitio donde lo vas a dejar y pulsa <b>“Usar mi ubicación actual”</b>. También puedes tocar el mapa para elegir el punto desde casa.</p>
+
+  <button class="green" id="btnHere">📍 Usar mi ubicación actual</button>
+  <div class="status" id="stSel">Ningún punto elegido todavía.</div>
+
+  <p style="margin-bottom:4px"><b>Tamaño de la zona de búsqueda</b> (el niño verá un círculo, no el punto exacto)</p>
+  <div class="row" id="radiusRow">
+    <div class="chip" data-r="100">100 m</div>
+    <div class="chip on" data-r="200">200 m</div>
+    <div class="chip" data-r="400">400 m</div>
+  </div>
+
+  <button class="primary" id="btnSave">💾 Guardar y esconder</button>
+  <div class="row"><button class="secondary" id="btnShare">📤 Enviar enlace al móvil del niño</button></div>
+  <div class="row"><button class="secondary" id="btnReveal">👁 Ver punto exacto (solo tú)</button></div>
+  <div class="row"><button class="secondary" id="btnClear">🗑 Borrar escondite</button><button class="secondary" id="btnClose">Cerrar</button></div>
+  <p style="font-size:12px;opacity:.7">El enlace solo contiene el centro aproximado de la zona, nunca el punto exacto.</p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+(function(){
+  'use strict';
+  var $ = function(id){return document.getElementById(id)};
+  var LS = {
+    get:function(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},
+    set:function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},
+    del:function(k){try{localStorage.removeItem(k)}catch(e){}}
+  };
+
+  /* ---------- Utilidades geo ---------- */
+  var R_EARTH = 6371000, rad = Math.PI/180, deg = 180/Math.PI;
+  function dist(a,b){
+    var dLat=(b.lat-a.lat)*rad, dLng=(b.lng-a.lng)*rad;
+    var h=Math.sin(dLat/2)**2+Math.cos(a.lat*rad)*Math.cos(b.lat*rad)*Math.sin(dLng/2)**2;
+    return 2*R_EARTH*Math.asin(Math.sqrt(h));
+  }
+  function bearing(a,b){
+    var y=Math.sin((b.lng-a.lng)*rad)*Math.cos(b.lat*rad);
+    var x=Math.cos(a.lat*rad)*Math.sin(b.lat*rad)-Math.sin(a.lat*rad)*Math.cos(b.lat*rad)*Math.cos((b.lng-a.lng)*rad);
+    return (Math.atan2(y,x)*deg+360)%360;
+  }
+  function offset(p, meters, brgDeg){
+    var d=meters/R_EARTH, b=brgDeg*rad, la=p.lat*rad, lo=p.lng*rad;
+    var la2=Math.asin(Math.sin(la)*Math.cos(d)+Math.cos(la)*Math.sin(d)*Math.cos(b));
+    var lo2=lo+Math.atan2(Math.sin(b)*Math.sin(d)*Math.cos(la),Math.cos(d)-Math.sin(la)*Math.sin(la2));
+    return {lat:la2*deg,lng:lo2*deg};
+  }
+  function fmtDist(m){ return m<1000 ? Math.round(m/10)*10+' m' : (m/1000).toFixed(1).replace('.',',')+' km'; }
+  function toast(t){var e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast._t);toast._t=setTimeout(function(){e.style.display='none'},2800)}
+
+  /* ---------- Estado ---------- */
+  // zone: {lat,lng,r}  -> centro aproximado + radio (lo que ve el niño)
+  // secret: {lat,lng}  -> punto exacto, SOLO en el móvil de los padres
+  var zone = null;
+  var me = null;
+  var heading = null;     // grados respecto al norte
+  var pick = null;        // punto elegido en modo padres
+  var radiusSel = 200;
+  var parentMode = false;
+
+  // enlace compartido: #z=lat,lng,r
+  (function readHash(){
+    var m = /[#&]z=(-?\d+\.\d+),(-?\d+\.\d+),(\d+)/.exec(location.hash);
+    if(m){
+      zone = {lat:+m[1],lng:+m[2],r:+m[3]};
+      LS.set('tio_zone', zone);
+      try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}
+    } else {
+      zone = LS.get('tio_zone');
+    }
+  })();
+
+  /* ---------- Mapa ---------- */
+  var map = L.map('map',{zoomControl:false,attributionControl:true,maxZoom:19}).setView([41.8,2.0],8);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {maxZoom:19,maxNativeZoom:18,attribution:'Imágenes © Esri'}).addTo(map);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+    {maxZoom:19,maxNativeZoom:18,opacity:.9}).addTo(map);
+  map.attributionControl.setPrefix(false);
+
+  var zoneCircle=null, zoneMark=null, meMarker=null, accCircle=null, pickMarker=null, pickCircle=null, secretMarker=null;
+  var userMovedMap=false;
+  map.on('dragstart',function(){userMovedMap=true});
+
+  function drawZone(){
+    if(zoneCircle){map.removeLayer(zoneCircle);zoneCircle=null}
+    if(zoneMark){map.removeLayer(zoneMark);zoneMark=null}
+    if(!zone) return;
+    zoneCircle = L.circle([zone.lat,zone.lng],{radius:zone.r,color:'#ffcf4a',weight:3,dashArray:'8 6',fillColor:'#ffcf4a',fillOpacity:.18}).addTo(map);
+    zoneMark = L.marker([zone.lat,zone.lng],{interactive:false,icon:L.divIcon({className:'',html:'<div class="pin">🪵</div>',iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
+  }
+
+  function fitAll(){
+    var pts=[];
+    if(zone){ pts.push(zoneCircle.getBounds().getSouthWest(), zoneCircle.getBounds().getNorthEast()); }
+    if(me) pts.push([me.lat,me.lng]);
+    if(pts.length) map.fitBounds(L.latLngBounds(pts),{padding:[50,50],maxZoom:17});
+  }
+
+  /* ---------- Posición del niño ---------- */
+  function onPos(p){
+    me = {lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy};
+    if(!meMarker){
+      meMarker=L.marker([me.lat,me.lng],{interactive:false,icon:L.divIcon({className:'',html:'<div class="me-dot"></div>',iconSize:[18,18],iconAnchor:[9,9]})}).addTo(map);
+      accCircle=L.circle([me.lat,me.lng],{radius:me.acc,color:'#2d8cff',weight:1,fillOpacity:.1}).addTo(map);
+      if(!userMovedMap) fitAll();
+    } else {
+      meMarker.setLatLng([me.lat,me.lng]);
+      accCircle.setLatLng([me.lat,me.lng]).setRadius(me.acc);
+    }
+    update();
+  }
+  function onPosErr(e){
+    $('dist').textContent='📡';
+    $('msg').textContent = e.code===1 ? 'Necesito permiso de ubicación. Actívalo en Ajustes › Safari › Ubicación.' : 'No consigo ver dónde estás. Sal a un sitio abierto.';
+  }
+  function startGeo(){
+    if(!navigator.geolocation){onPosErr({code:0});return}
+    navigator.geolocation.watchPosition(onPos,onPosErr,{enableHighAccuracy:true,maximumAge:2000,timeout:20000});
+  }
+
+  /* ---------- Brújula ---------- */
+  var smooth=null;
+  function setHeading(h){
+    if(h==null||isNaN(h)) return;
+    if(smooth==null) smooth=h;
+    else {
+      var d=((h-smooth+540)%360)-180;
+      smooth=(smooth+d*0.25+360)%360;
+    }
+    heading=smooth;
+    update();
+  }
+  function onOrient(e){
+    if(typeof e.webkitCompassHeading==='number'){ setHeading(e.webkitCompassHeading); }   // iOS
+    else if(e.absolute && e.alpha!=null){ setHeading((360-e.alpha)%360); }                  // Android
+  }
+  var orientStarted=false;
+  function startCompass(){
+    if(orientStarted) return; orientStarted=true;
+    var D=window.DeviceOrientationEvent;
+    function attach(){
+      window.addEventListener('deviceorientationabsolute',onOrient,true);
+      window.addEventListener('deviceorientation',onOrient,true);
+    }
+    if(D && typeof D.requestPermission==='function'){
+      D.requestPermission().then(function(r){
+        if(r==='granted') attach(); else {orientStarted=false;toast('Sin brújula: permiso denegado');}
+      }).catch(function(){orientStarted=false});
+    } else attach();
+  }
+
+  /* ---------- Actualizar panel ---------- */
+  var arrowRot = 0;
+  function update(){
+    if(!zone) return;
+    if(!me){ return; }
+    var target={lat:zone.lat,lng:zone.lng};
+    var d = dist(me,target);
+    var b = bearing(me,target);
+    var inside = d <= zone.r;
+
+    // flecha
+    var rot;
+    if(heading==null) rot = b;           // sin brújula: respecto al norte del mapa
+    else rot = (b - heading + 360) % 360; // respecto a hacia donde apunta el móvil
+    var diff=((rot-arrowRot+540)%360)-180; arrowRot+=diff;
+    $('arrow').style.transform='rotate('+arrowRot+'deg)';
+    $('lblN').style.opacity = heading==null ? 1 : 0;
+
+    var dEl=$('dist'), mEl=$('msg'), sEl=$('sub');
+    dEl.className='dist';
+    if(inside){
+      dEl.textContent='¡Zona del Tió!';
+      dEl.style.fontSize='22px';
+      dEl.className='dist near';
+      mEl.textContent='Estás dentro del círculo. ¡Mira detrás de los árboles, entre las rocas y los troncos!';
+    } else {
+      dEl.style.fontSize='';
+      var edge = d - zone.r;
+      dEl.textContent = fmtDist(edge);
+      var ratio = d/ (zone.r*6);
+      if(edge<150){ dEl.className='dist hot'; mEl.textContent='🔥 ¡Muy caliente! Ya casi llegas al círculo.'; }
+      else if(edge<500){ mEl.textContent='😃 Vas bien, sigue la flecha.'; }
+      else { mEl.textContent='🥶 Todavía estás lejos. Sigue la flecha roja.'; }
+    }
+    sEl.textContent = inside ? 'El Tió está en algún lugar de la zona amarilla' : 'hasta la zona donde se esconde el Tió'
+      + (heading==null ? ' · Toca la brújula para activarla' : '');
+  }
+
+  // tocar el panel activa la brújula (iOS exige un toque del usuario)
+  $('panel').addEventListener('click',startCompass);
+  $('map').addEventListener('touchstart',startCompass,{once:true,passive:true});
+
+  /* ---------- Pantalla vacía ---------- */
+  function refreshEmpty(){
+    var show = !zone && !parentMode;
+    $('empty').style.display = show ? 'flex' : 'none';
+    $('panel').style.display = zone ? 'flex' : 'none';
+  }
+
+  /* ---------- Modo padres ---------- */
+  function hash(s){var h=5381;for(var i=0;i<s.length;i++){h=((h<<5)+h+s.charCodeAt(i))|0}return String(h)}
+  var pinMode=null;
+  function openPin(){
+    var has = LS.get('tio_pin');
+    pinMode = has ? 'check' : 'set';
+    $('pinText').textContent = has ? 'Introduce tu PIN para entrar.' : 'Primera vez: crea un PIN (4 dígitos o más) para que los peques no puedan ver el punto exacto.';
+    $('pinOk').textContent = has ? 'Entrar' : 'Crear PIN';
+    $('pinInput').value='';
+    $('sheetPin').style.display='block';
+    setTimeout(function(){$('pinInput').focus()},50);
+  }
+  $('btnParent').onclick=$('btnParent2').onclick=function(){ if(parentMode){closeParent()} else openPin(); };
+  $('pinCancel').onclick=function(){$('sheetPin').style.display='none'};
+  $('pinOk').onclick=function(){
+    var v=$('pinInput').value.trim();
+    if(v.length<4){toast('El PIN necesita al menos 4 dígitos');return}
+    if(pinMode==='set'){ LS.set('tio_pin',hash(v)); enterParent(); }
+    else if(hash(v)===LS.get('tio_pin')){ enterParent(); }
+    else { toast('PIN incorrecto'); $('pinInput').value=''; }
+  };
+  function enterParent(){
+    $('sheetPin').style.display='none';
+    parentMode=true;
+    $('sheetParent').style.display='block';
+    $('btnParent').textContent='🔓';
+    $('panel').style.display='none';
+    $('empty').style.display='none';
+    var s=LS.get('tio_secret');
+    if(s){ setPick({lat:s.lat,lng:s.lng}); }
+    if(zone && !pick){ map.fitBounds(zoneCircle.getBounds(),{padding:[40,40]}); }
+    updateStatus();
+  }
+  function closeParent(){
+    parentMode=false;
+    $('sheetParent').style.display='none';
+    $('btnParent').textContent='🔒';
+    if(secretMarker){map.removeLayer(secretMarker);secretMarker=null}
+    if(pickMarker){map.removeLayer(pickMarker);pickMarker=null}
+    if(pickCircle){map.removeLayer(pickCircle);pickCircle=null}
+    refreshEmpty(); update();
+  }
+  $('btnClose').onclick=closeParent;
+
+  function setPick(p){
+    pick=p;
+    if(pickMarker) map.removeLayer(pickMarker);
+    if(pickCircle) map.removeLayer(pickCircle);
+    pickMarker=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:'<div class="pin">📍</div>',iconSize:[30,30],iconAnchor:[15,28]})}).addTo(map);
+    pickCircle=L.circle([p.lat,p.lng],{radius:radiusSel,color:'#fff',weight:2,dashArray:'4 6',fillOpacity:.05}).addTo(map);
+    updateStatus();
+  }
+  function updateStatus(){
+    $('stSel').textContent = pick
+      ? 'Punto elegido: '+pick.lat.toFixed(5)+', '+pick.lng.toFixed(5)+(zone?'  ·  Escondite ya guardado ✅':'')
+      : 'Ningún punto elegido todavía.';
+  }
+  map.on('click',function(e){ if(parentMode) setPick({lat:e.latlng.lat,lng:e.latlng.lng}); });
+
+  $('btnHere').onclick=function(){
+    if(!navigator.geolocation){toast('Sin GPS');return}
+    $('btnHere').textContent='Buscando GPS…';
+    navigator.geolocation.getCurrentPosition(function(p){
+      $('btnHere').textContent='📍 Usar mi ubicación actual';
+      setPick({lat:p.coords.latitude,lng:p.coords.longitude});
+      map.setView([p.coords.latitude,p.coords.longitude],17);
+      toast('Ubicación capturada (precisión ±'+Math.round(p.coords.accuracy)+' m)');
+    },function(){
+      $('btnHere').textContent='📍 Usar mi ubicación actual';
+      toast('No se pudo obtener la ubicación. Revisa los permisos.');
+    },{enableHighAccuracy:true,timeout:25000,maximumAge:0});
+  };
+
+  Array.prototype.forEach.call(document.querySelectorAll('#radiusRow .chip'),function(c){
+    c.onclick=function(){
+      radiusSel=+c.dataset.r;
+      Array.prototype.forEach.call(document.querySelectorAll('#radiusRow .chip'),function(x){x.classList.toggle('on',x===c)});
+      if(pick) setPick(pick);
+    };
+  });
+
+  function buildLink(){
+    return location.origin+location.pathname+'#z='+zone.lat.toFixed(5)+','+zone.lng.toFixed(5)+','+zone.r;
+  }
+
+  $('btnSave').onclick=function(){
+    if(!pick){toast('Primero elige un punto');return}
+    // El centro mostrado se desplaza al azar hasta el 55% del radio, así el Tió nunca está en el centro exacto
+    var off = offset(pick, Math.random()*radiusSel*0.55, Math.random()*360);
+    zone={lat:off.lat,lng:off.lng,r:radiusSel};
+    LS.set('tio_zone',zone);
+    LS.set('tio_secret',{lat:pick.lat,lng:pick.lng});
+    drawZone(); updateStatus();
+    toast('¡Tió escondido! Ahora puedes enviar el enlace.');
+  };
+
+  $('btnShare').onclick=function(){
+    if(!zone){toast('Primero guarda el escondite');return}
+    var url=buildLink();
+    var text='🪵 ¡El Tió se ha escondido en el bosque! Abre este enlace y sigue la flecha para encontrarlo.';
+    if(navigator.share){ navigator.share({title:'Troba el Tió',text:text,url:url}).catch(function(){}); }
+    else if(navigator.clipboard){ navigator.clipboard.writeText(url).then(function(){toast('Enlace copiado')}); }
+    else { prompt('Copia este enlace:',url); }
+  };
+
+  $('btnReveal').onclick=function(){
+    var s=LS.get('tio_secret');
+    if(!s){toast('No hay punto guardado en este móvil');return}
+    if(secretMarker) map.removeLayer(secretMarker);
+    secretMarker=L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:'<div class="pin">🎁</div>',iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
+    map.setView([s.lat,s.lng],18);
+  };
+
+  $('btnClear').onclick=function(){
+    if(!confirm('¿Borrar el escondite guardado?')) return;
+    LS.del('tio_zone'); LS.del('tio_secret'); zone=null; pick=null;
+    drawZone();
+    if(pickMarker){map.removeLayer(pickMarker);pickMarker=null}
+    if(pickCircle){map.removeLayer(pickCircle);pickCircle=null}
+    if(secretMarker){map.removeLayer(secretMarker);secretMarker=null}
+    updateStatus(); toast('Escondite borrado');
+  };
+
+  /* ---------- Arranque ---------- */
+  drawZone();
+  if(zone && zoneCircle) map.fitBounds(zoneCircle.getBounds(),{padding:[50,50],maxZoom:17});
+  refreshEmpty();
+  startGeo();
+  // En Android la brújula no necesita permiso: arranca sola
+  if(!(window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission==='function')) startCompass();
+})();
+</script>
+</body>
+</html>
