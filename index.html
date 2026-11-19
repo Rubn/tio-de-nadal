@@ -108,9 +108,9 @@
 
   <p style="margin-bottom:4px"><b>Tamaño de la zona de búsqueda</b> (el niño verá un círculo, no el punto exacto)</p>
   <div class="row" id="radiusRow">
+    <div class="chip" data-r="25">25 m</div>
+    <div class="chip on" data-r="50">50 m</div>
     <div class="chip" data-r="100">100 m</div>
-    <div class="chip on" data-r="200">200 m</div>
-    <div class="chip" data-r="400">400 m</div>
   </div>
 
   <button class="primary" id="btnSave">💾 Guardar y esconder</button>
@@ -161,7 +161,7 @@
   var me = null;
   var heading = null;     // grados respecto al norte
   var pick = null;        // punto elegido en modo padres
-  var radiusSel = 200;
+  var radiusSel = 50;
   var parentMode = false;
 
   // enlace compartido: #z=lat,lng,r
@@ -281,13 +281,14 @@
       dEl.style.fontSize='22px';
       dEl.className='dist near';
       mEl.textContent='Estás dentro del círculo. ¡Mira detrás de los árboles, entre las rocas y los troncos!';
+      if(zone.r<=25) mEl.textContent='¡Estás muy cerquita! Mira a tu alrededor: detrás de los árboles y los troncos.';
     } else {
       dEl.style.fontSize='';
       var edge = d - zone.r;
       dEl.textContent = fmtDist(edge);
       var ratio = d/ (zone.r*6);
-      if(edge<150){ dEl.className='dist hot'; mEl.textContent='🔥 ¡Muy caliente! Ya casi llegas al círculo.'; }
-      else if(edge<500){ mEl.textContent='😃 Vas bien, sigue la flecha.'; }
+      if(edge<60){ dEl.className='dist hot'; mEl.textContent='🔥 ¡Muy caliente! Ya casi llegas al círculo.'; }
+      else if(edge<250){ mEl.textContent='😃 Vas bien, sigue la flecha.'; }
       else { mEl.textContent='🥶 Todavía estás lejos. Sigue la flecha roja.'; }
     }
     sEl.textContent = inside ? 'El Tió está en algún lugar de la zona amarilla' : 'hasta la zona donde se esconde el Tió'
