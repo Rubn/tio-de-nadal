@@ -46,6 +46,18 @@
   .status{font-size:13px;margin:8px 0;padding:8px 10px;border-radius:10px;background:#fff;border:1px dashed #cdb89a}
   .toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 64px);transform:translateX(-50%);z-index:3000;background:#000c;color:#fff;
          padding:10px 16px;border-radius:20px;font-size:14px;display:none;max-width:90%;text-align:center}
+  .top .btns{display:flex;gap:8px}
+  .icon-btn{position:relative}
+  .badge{position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;border-radius:10px;background:var(--accent);color:#fff;font-size:12px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 5px;border:2px solid #fff}
+  #chat{position:fixed;inset:0;z-index:2500;background:#e9dfcf;display:none;flex-direction:column}
+  #chat header{padding:calc(env(safe-area-inset-top) + 10px) 14px 10px;background:var(--bg);color:#fff;display:flex;align-items:center;gap:12px}
+  #chat .av{width:42px;height:42px;border-radius:50%;background:#fff8ee;display:flex;align-items:center;justify-content:center;font-size:24px}
+  #chat .who b{display:block;font-size:17px} #chat .who span{font-size:12px;opacity:.75}
+  #chat .x{margin-left:auto;background:#ffffff22;color:#fff;border:0;border-radius:50%;width:38px;height:38px;font-size:18px}
+  #msgs{flex:1;overflow:auto;padding:14px 12px;display:flex;flex-direction:column;gap:8px}
+  .bubble{max-width:82%;background:#fff;border-radius:18px 18px 18px 4px;padding:10px 13px;font-size:16px;line-height:1.35;box-shadow:0 1px 2px #0003;align-self:flex-start;white-space:pre-wrap}
+  .bubble small{display:block;margin-top:4px;font-size:11px;opacity:.5;text-align:right}
+  #chat footer{padding:12px 16px calc(env(safe-area-inset-bottom) + 12px);background:#f4ece0;text-align:center;font-size:13px;opacity:.85;border-top:1px solid #d9c9b0}
   .me-dot{width:18px;height:18px;border-radius:50%;background:#2d8cff;border:3px solid #fff;box-shadow:0 0 0 6px #2d8cff44}
   .pin{font-size:30px;filter:drop-shadow(0 2px 3px #000a)}
   #empty{position:fixed;inset:0;z-index:1500;background:var(--bg);color:#fff;display:none;align-items:center;justify-content:center;text-align:center;padding:30px}
@@ -59,7 +71,10 @@
 
 <div class="top">
   <h1>🪵 Troba el Tió</h1>
-  <button class="icon-btn" id="btnParent" aria-label="Modo padres">🔒</button>
+  <div class="btns">
+    <button class="icon-btn" id="btnChat" aria-label="Mensajes del Tió">💬<span class="badge" id="badge"></span></button>
+    <button class="icon-btn" id="btnParent" aria-label="Modo padres">🔒</button>
+  </div>
 </div>
 
 <div class="bottom" id="panel">
@@ -88,6 +103,17 @@
     <p>Aún no se ha escondido el Tió en el bosque.<br>Pide a mamá o papá que lo escondan y vuelve a abrir esta página.</p>
     <p style="margin-top:24px"><button class="secondary" id="btnParent2" style="max-width:260px">🔒 Soy mamá/papá</button></p>
   </div>
+</div>
+
+<!-- Chat del Tió (solo lectura) -->
+<div id="chat">
+  <header>
+    <div class="av">🪵</div>
+    <div class="who"><b>El Tió</b><span>en el bosque 🌲</span></div>
+    <button class="x" id="chatClose" aria-label="Cerrar">✕</button>
+  </header>
+  <div id="msgs"></div>
+  <footer>🌲 El Tió no puede leer respuestas, ¡solo te escribe a ti!</footer>
 </div>
 
 <!-- Hoja de PIN -->
@@ -428,6 +454,36 @@
     if(secretMarker){map.removeLayer(secretMarker);secretMarker=null}
     updateStatus(); toast('Escondite borrado');
   };
+
+  /* ---------- Mensajes del Tió ---------- */
+  // Edita esta lista para cambiar los mensajes. "hora" es solo texto decorativo.
+  var MENSAJES = [
+    {hora:'10:02', texto:'¡Hola! Soy el Tió 🪵 Llevo todo el año durmiendo en el bosque y tengo muchísima hambre…'},
+    {hora:'10:03', texto:'Me he escondido en un lugar secreto. Sigue la flecha roja y búscame dentro del círculo amarillo.'},
+    {hora:'10:05', texto:'Pista: me gustan los sitios tranquilos, cerca de los árboles. 🌳'},
+    {hora:'10:06', texto:'¡Cuando me encuentres, tendrás que darme de comer y cantarme una canción! 🎶'}
+  ];
+  var seenKey='tio_seen';
+  function renderChat(){
+    var box=$('msgs'); box.innerHTML='';
+    MENSAJES.forEach(function(m){
+      var d=document.createElement('div'); d.className='bubble';
+      d.textContent=m.texto;
+      if(m.hora){var s=document.createElement('small'); s.textContent=m.hora; d.appendChild(s);}
+      box.appendChild(d);
+    });
+  }
+  function updateBadge(){
+    var seen=LS.get(seenKey)||0, n=Math.max(0,MENSAJES.length-seen), b=$('badge');
+    b.textContent=n; b.style.display=n?'flex':'none';
+  }
+  $('btnChat').onclick=function(){
+    renderChat(); $('chat').style.display='flex';
+    LS.set(seenKey,MENSAJES.length); updateBadge();
+    var box=$('msgs'); box.scrollTop=box.scrollHeight;
+  };
+  $('chatClose').onclick=function(){$('chat').style.display='none'};
+  updateBadge();
 
   /* ---------- Arranque ---------- */
   drawZone();
